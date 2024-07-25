@@ -28,12 +28,17 @@ class _HomeViewState extends State<HomeView> {
   Future<void> _initializeSpeechRecognition() async {
     _speech = stt.SpeechToText();
     bool available = await _speech.initialize(
-      onStatus: (status) => print('Speech recognition status: $status'),
+      onStatus: (status) {
+        print('Speech recognition status: $status');
+        if (status == 'done') {
+          _startListening();
+        }
+      },
       onError: (errorNotification) => setState(() {
         _errorMessage =
             'Speech recognition error: ${errorNotification.errorMsg}';
         print(_errorMessage);
-        _restartListening();
+        _startListening();
       }),
     );
     if (available) {
@@ -67,21 +72,15 @@ class _HomeViewState extends State<HomeView> {
           _startAnimation();
           _transcription = '';
         } else if (_isActivated) {
-          _transcription = result.recognizedWords;
+          _transcription += ' ' + result.recognizedWords;
         }
       }),
-      listenFor: Duration(seconds: 30),
+      listenMode: stt.ListenMode.dictation,
       pauseFor: Duration(seconds: 3),
+      cancelOnError: false,
+      partialResults: true,
     );
     print('Started listening');
-  }
-
-  void _restartListening() {
-    Future.delayed(Duration(seconds: 1), () {
-      if (_speech.isNotListening) {
-        _startListening();
-      }
-    });
   }
 
   Future<void> _requestMicrophonePermission() async {
@@ -124,15 +123,9 @@ class _HomeViewState extends State<HomeView> {
               children: [
                 Text(
                   _isActivated ? _transcription : 'Say "Hello" to activate',
-                  style: TextStyle(fontSize: 10.0, color: Colors.white),
+                  style: TextStyle(fontSize: 12.0, color: Colors.white),
                   textAlign: TextAlign.center,
                 ),
-                if (_errorMessage.isNotEmpty)
-                  Text(
-                    _errorMessage,
-                    style: TextStyle(fontSize: 10.0, color: Colors.red),
-                    textAlign: TextAlign.center,
-                  ),
               ],
             ),
           ),
