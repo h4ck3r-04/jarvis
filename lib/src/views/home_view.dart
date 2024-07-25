@@ -16,12 +16,33 @@ class _HomeViewState extends State<HomeView> {
   bool _isListening = false;
   bool _isAnimating = false;
   String _command = '';
+  String _errorMessage = '';
 
   @override
   void initState() {
     super.initState();
-    _initializePermissions();
+    _initializeSpeechRecognition();
+    _initializeWebView();
+  }
+
+  Future<void> _initializeSpeechRecognition() async {
     _speech = stt.SpeechToText();
+    bool available = await _speech.initialize(
+      onStatus: (status) => print('Speech recognition status: $status'),
+      onError: (errorNotification) => setState(() {
+        _errorMessage =
+            'Speech recognition error: ${errorNotification.errorMsg}';
+        print(_errorMessage);
+      }),
+    );
+    if (available) {
+      print('Speech recognition initialized successfully');
+    } else {
+      setState(() => _errorMessage = 'Speech recognition not available');
+    }
+  }
+
+  void _initializeWebView() {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
@@ -34,35 +55,40 @@ class _HomeViewState extends State<HomeView> {
       ..loadFlutterAsset('assets/blob.html');
   }
 
-  Future<void> _initializePermissions() async {
-    // Request microphone permission
-    await Permission.microphone.request();
-  }
-
-  void _startListening() async {
-    if (!_isListening) {
-      bool available = await _speech.initialize(
-        onStatus: (val) => print('onStatus: $val'),
-        onError: (val) => print('onError: $val'),
-      );
-      if (available) {
-        setState(() => _isListening = true);
-        _speech.listen(
-          onResult: (val) => setState(() {
-            _command = val.recognizedWords;
-            if (_command.toLowerCase().contains('jarvis')) {
-              _startAnimation();
-            }
-          }),
-        );
-      }
+  Future<void> _requestMicrophonePermission() async {
+    PermissionStatus status = await Permission.microphone.request();
+    if (status.isGranted) {
+      print('Microphone permission granted');
+    } else {
+      setState(() => _errorMessage = 'Microphone permission denied');
     }
   }
 
+  void _toggleListening() async {
+    if (_speech.isNotListening) {
+      await _requestMicrophonePermission();
+      _startListening();
+    } else {
+      _stopListening();
+    }
+  }
+
+  void _startListening() async {
+    setState(() => _isListening = true);
+    await _speech.listen(
+      onResult: (result) => setState(() {
+        _command = result.recognizedWords;
+        print('Recognized words: $_command');
+        if (_command.toLowerCase().contains('hello')) {
+          _startAnimation();
+        }
+      }),
+    );
+  }
+
   void _stopListening() {
-    setState(() => _isListening = false);
     _speech.stop();
-    _stopAnimation();
+    setState(() => _isListening = false);
   }
 
   void _startAnimation() {
@@ -87,12 +113,31 @@ class _HomeViewState extends State<HomeView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: GestureDetector(
-        onTap: () {}, // Absorb taps
-        child: WebViewWidget(controller: _controller),
+      body: Stack(
+        children: [
+          WebViewWidget(controller: _controller),
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _command,
+                  style: TextStyle(fontSize: 10.0, color: Colors.white),
+                  textAlign: TextAlign.center,
+                ),
+                if (_errorMessage.isNotEmpty)
+                  Text(
+                    _errorMessage,
+                    style: TextStyle(fontSize: 10.0, color: Colors.red),
+                    textAlign: TextAlign.center,
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _isListening ? _stopListening : _startListening,
+        onPressed: _toggleListening,
         child: Icon(_isListening ? Icons.mic_off : Icons.mic),
       ),
     );
