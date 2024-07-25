@@ -13,10 +13,10 @@ class HomeView extends StatefulWidget {
 class _HomeViewState extends State<HomeView> {
   late WebViewController _controller;
   late stt.SpeechToText _speech;
-  bool _isListening = false;
   bool _isAnimating = false;
-  String _command = '';
+  String _transcription = '';
   String _errorMessage = '';
+  bool _isActivated = false;
 
   @override
   void initState() {
@@ -33,10 +33,12 @@ class _HomeViewState extends State<HomeView> {
         _errorMessage =
             'Speech recognition error: ${errorNotification.errorMsg}';
         print(_errorMessage);
+        _restartListening();
       }),
     );
     if (available) {
       print('Speech recognition initialized successfully');
+      _startListening();
     } else {
       setState(() => _errorMessage = 'Speech recognition not available');
     }
@@ -55,6 +57,33 @@ class _HomeViewState extends State<HomeView> {
       ..loadFlutterAsset('assets/blob.html');
   }
 
+  void _startListening() async {
+    await _requestMicrophonePermission();
+    await _speech.listen(
+      onResult: (result) => setState(() {
+        if (!_isActivated &&
+            result.recognizedWords.toLowerCase().contains('hello')) {
+          _isActivated = true;
+          _startAnimation();
+          _transcription = '';
+        } else if (_isActivated) {
+          _transcription = result.recognizedWords;
+        }
+      }),
+      listenFor: Duration(seconds: 30),
+      pauseFor: Duration(seconds: 3),
+    );
+    print('Started listening');
+  }
+
+  void _restartListening() {
+    Future.delayed(Duration(seconds: 1), () {
+      if (_speech.isNotListening) {
+        _startListening();
+      }
+    });
+  }
+
   Future<void> _requestMicrophonePermission() async {
     PermissionStatus status = await Permission.microphone.request();
     if (status.isGranted) {
@@ -62,33 +91,6 @@ class _HomeViewState extends State<HomeView> {
     } else {
       setState(() => _errorMessage = 'Microphone permission denied');
     }
-  }
-
-  void _toggleListening() async {
-    if (_speech.isNotListening) {
-      await _requestMicrophonePermission();
-      _startListening();
-    } else {
-      _stopListening();
-    }
-  }
-
-  void _startListening() async {
-    setState(() => _isListening = true);
-    await _speech.listen(
-      onResult: (result) => setState(() {
-        _command = result.recognizedWords;
-        print('Recognized words: $_command');
-        if (_command.toLowerCase().contains('hello')) {
-          _startAnimation();
-        }
-      }),
-    );
-  }
-
-  void _stopListening() {
-    _speech.stop();
-    setState(() => _isListening = false);
   }
 
   void _startAnimation() {
@@ -121,7 +123,7 @@ class _HomeViewState extends State<HomeView> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  _command,
+                  _isActivated ? _transcription : 'Say "Hello" to activate',
                   style: TextStyle(fontSize: 10.0, color: Colors.white),
                   textAlign: TextAlign.center,
                 ),
@@ -135,10 +137,6 @@ class _HomeViewState extends State<HomeView> {
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _toggleListening,
-        child: Icon(_isListening ? Icons.mic_off : Icons.mic),
       ),
     );
   }
