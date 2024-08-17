@@ -66,21 +66,29 @@ class _HomeViewState extends State<HomeView> {
     await _requestMicrophonePermission();
     await _speech.listen(
       onResult: (result) => setState(() {
-        if (!_isActivated &&
-            result.recognizedWords.toLowerCase().contains('hello')) {
-          _isActivated = true;
-          _startAnimation();
-          _transcription = '';
-        } else if (_isActivated) {
-          _transcription = result.recognizedWords;
-        }
+        _transcription = result.recognizedWords;
+        _processSpeech(_transcription);
       }),
       listenMode: stt.ListenMode.dictation,
-      pauseFor: Duration(seconds: 3),
+      pauseFor: Duration(seconds: 1),
       cancelOnError: false,
       partialResults: true,
     );
     print('Started listening');
+  }
+
+  void _processSpeech(String speech) {
+    speech = speech.toLowerCase();
+    if (speech.contains('hello')) {
+      _isActivated = true;
+      _startAnimation();
+    } else if (_isActivated) {
+      if (speech.contains('stop')) {
+        _stopAnimation();
+        _isActivated = false;
+      }
+      // Add more commands here
+    }
   }
 
   Future<void> _requestMicrophonePermission() async {
@@ -96,11 +104,6 @@ class _HomeViewState extends State<HomeView> {
     if (!_isAnimating) {
       _controller.runJavaScript('startAnimation()');
       setState(() => _isAnimating = true);
-      Future.delayed(Duration(seconds: 10), () {
-        if (_isAnimating) {
-          _stopAnimation();
-        }
-      });
     }
   }
 
@@ -117,16 +120,23 @@ class _HomeViewState extends State<HomeView> {
       body: Stack(
         children: [
           WebViewWidget(controller: _controller),
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
+          Positioned(
+            bottom: 50,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
                   _isActivated ? _transcription : 'Say "Hello" to activate',
-                  style: TextStyle(fontSize: 12.0, color: Colors.white),
+                  style: TextStyle(fontSize: 16.0, color: Colors.white),
                   textAlign: TextAlign.center,
                 ),
-              ],
+              ),
             ),
           ),
         ],
