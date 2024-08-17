@@ -72,7 +72,7 @@ class _HomeViewState extends State<HomeView> {
           _startAnimation();
           _transcription = '';
         } else if (_isActivated) {
-          _transcription += ' ' + result.recognizedWords;
+          _transcription = result.recognizedWords;
         }
       }),
       listenMode: stt.ListenMode.dictation,
